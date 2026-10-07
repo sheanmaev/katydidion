@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Katydidion</title>
+<meta name="description" content="Name the bug nobody else would. 7 prompts, rarer answers score more.">
+<meta property="og:title" content="Katydidion 🦗">
+<meta property="og:description" content="Name the bug nobody else would.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦗</text></svg>">
+<style>
+  :root {
+    --bg: #f4f1e6;
+    --fg: #1f2a1c;
+    --muted: #6b735f;
+    --line: #c9c4ae;
+    --accent: #3f7d2c;
+    --bad: #a23b2a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141a12;
+      --fg: #e8ead9;
+      --muted: #9aa38c;
+      --line: #36412f;
+      --accent: #8fd16a;
+      --bad: #e0806b;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 17px/1.45 ui-rounded, "SF Pro Rounded", system-ui, -apple-system, sans-serif;
+    min-height: 100dvh;
+    display: flex;
+    justify-content: center;
+  }
+  main { width: 100%; max-width: 520px; padding: 28px 16px 48px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 28px; }
+  h1 { font-size: 28px; margin: 0; letter-spacing: -0.5px; }
+  h1 span { font-size: 24px; }
+  .gameno { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .progress { display: flex; gap: 6px; margin-bottom: 22px; font-size: 22px; min-height: 30px; }
+  .progress .slot { width: 30px; text-align: center; border-bottom: 2px solid var(--line); }
+  .progress .slot.cur { border-color: var(--accent); }
+  .qnum { color: var(--muted); font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+  .prompt { font-size: 26px; font-weight: 700; margin: 6px 0 20px; line-height: 1.2; }
+  form { display: flex; gap: 8px; }
+  input[type=text] {
+    flex: 1; min-width: 0;
+    font: inherit; font-size: 19px;
+    color: var(--fg); background: transparent;
+    border: 2px solid var(--line); border-radius: 10px;
+    padding: 12px 14px; outline: none;
+  }
+  input[type=text]:focus { border-color: var(--accent); }
+  button {
+    font: inherit; font-weight: 700;
+    color: var(--accent); background: transparent;
+    border: 2px solid var(--accent); border-radius: 10px;
+    padding: 12px 18px; cursor: pointer;
+  }
+  button:disabled { opacity: .4; cursor: default; }
+  button.ghost { color: var(--muted); border-color: var(--line); }
+  .result { margin-top: 22px; min-height: 120px; }
+  .hit { display: flex; align-items: center; gap: 14px; }
+  .hit .emo { font-size: 44px; }
+  .hit .pts { font-size: 30px; font-weight: 800; }
+  .hit .lbl { color: var(--muted); }
+  .miss .pts { color: var(--bad); }
+  .rarest { margin-top: 12px; color: var(--muted); font-size: 15px; }
+  .rarest b { color: var(--fg); }
+  .actions { margin-top: 18px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .score { font-size: 64px; font-weight: 800; margin: 4px 0 0; font-variant-numeric: tabular-nums; }
+  .outof { color: var(--muted); margin-bottom: 14px; }
+  .row { font-size: 34px; letter-spacing: 2px; margin-bottom: 20px; }
+  .rank { font-size: 20px; font-weight: 700; margin-bottom: 18px; }
+  ol.recap { padding: 0; margin: 0 0 22px; list-style: none; border-top: 1px solid var(--line); }
+  ol.recap li { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+  ol.recap .e { font-size: 20px; }
+  ol.recap .q { color: var(--muted); }
+  ol.recap .a { font-weight: 700; }
+  ol.recap .p { margin-left: auto; font-variant-numeric: tabular-nums; }
+  pre.share {
+    font: inherit; white-space: pre-wrap;
+    border: 1px dashed var(--line); border-radius: 10px;
+    padding: 12px 14px; margin: 0 0 12px;
+  }
+  .toast { color: var(--accent); font-size: 14px; min-height: 20px; }
+  .legend { margin-top: 36px; color: var(--muted); font-size: 14px; }
+  .legend div { display: flex; gap: 10px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Katydidion <span>🦗</span></h1>
+    <div class="gameno" id="gameno"></div>
+  </header>
+
+  <section id="play">
+    <div class="progress" id="progress"></div>
+    <div class="qnum" id="qnum"></div>
+    <div class="prompt" id="prompt"></div>
+    <form id="form" autocomplete="off">
+      <input type="text" id="answer" placeholder="Your answer" autocapitalize="off" spellcheck="false" enterkeyhint="go">
+      <button type="submit" id="submit">Go</button>
+    </form>
+    <div class="result" id="result"></div>
+  </section>
+
+  <section id="done" class="hidden">
+    <div class="qnum">Final score</div>
+    <div class="score" id="final"></div>
+    <div class="outof">out of 700</div>
+    <div class="row" id="row"></div>
+    <div class="rank" id="rank"></div>
+    <ol class="recap" id="recap"></ol>
+    <pre class="share" id="sharetext"></pre>
+    <div class="actions">
+      <button id="share">Share</button>
+      <button id="copy" class="ghost">Copy</button>
+      <button id="again" class="ghost">New game</button>
+    </div>
+    <div class="toast" id="toast"></div>
+  </section>
+
+  <div class="legend" id="legend"></div>
+</main>
+
+<script>
+// Tiers: index -> points / emoji. Last tier is the single rarest answer.
+const PTS = [10, 25, 40, 60, 85, 100];
+const EMO = { 0: "🕸️", 10: "🐜", 25: "🐛", 40: "🐞", 60: "🐝", 85: "🪲", 100: "🦗" };
+const LBL = { 0: "Not in the field guide", 10: "Everybody said that", 25: "Common", 40: "Decent", 60: "Nice", 85: "Obscure", 100: "THE RAREST" };
+
+// q, then 5 tiers ("|" separates answers, "/" separates aliases), then the 100-pt rarest.
+const PROMPTS = [
+  ["Name a beetle",
+    "ladybug/ladybird/lady beetle|firefly/lightning bug|june bug/june beetle",
+    "dung beetle|stag beetle|japanese beetle|weevil|scarab/scarab beetle",
+    "rhinoceros beetle/rhino beetle|hercules beetle|click beetle|boll weevil|bark beetle|potato beetle/colorado potato beetle",
+    "bombardier beetle|tiger beetle|goliath beetle|longhorn beetle|blister beetle|carrion beetle|diving beetle|mealworm|cucumber beetle|flea beetle",
+    "titan beetle|darkling beetle|rove beetle|jewel beetle|tortoise beetle|whirligig beetle|burying beetle|ground beetle|emerald ash borer|deathwatch beetle|soldier beetle|stink beetle|ox beetle|atlas beetle",
+    "violin beetle"],
+  ["Name an insect that stings",
+    "bee|wasp|hornet",
+    "yellow jacket/yellowjacket|honeybee/honey bee|bumblebee/bumble bee|fire ant",
+    "murder hornet/asian giant hornet|paper wasp|bullet ant|mud dauber|ant|harvester ant",
+    "tarantula hawk|velvet ant/cow killer|cicada killer|sweat bee|carpenter bee|bald faced hornet",
+    "jack jumper ant/jack jumper|warrior wasp|red imported fire ant|africanized bee/killer bee|european hornet|scoliid wasp",
+    "executioner wasp"],
+  ["Name a type of ant",
+    "fire ant|carpenter ant|red ant|black ant",
+    "army ant|leafcutter ant/leaf cutter ant|bullet ant|sugar ant",
+    "pharaoh ant|weaver ant|harvester ant|odorous house ant|argentine ant|flying ant",
+    "honeypot ant|trap jaw ant|crazy ant|acrobat ant|pavement ant|driver ant|velvet ant",
+    "bulldog ant|slave maker ant/amazon ant|thief ant|citronella ant|jack jumper ant|turtle ant|ghost ant|exploding ant",
+    "dracula ant"],
+  ["Name a butterfly or moth",
+    "monarch|swallowtail",
+    "painted lady|cabbage white|luna moth|atlas moth|red admiral|morpho/blue morpho",
+    "viceroy|mourning cloak|gypsy moth/spongy moth|silk moth/silkworm moth|sphinx moth|hummingbird moth|buckeye|fritillary",
+    "cecropia moth|polyphemus moth|peppered moth|tiger moth|question mark|skipper|hairstreak|deaths head hawkmoth|comma|clothes moth|codling moth",
+    "io moth|rosy maple moth|birdwing|glasswing|owl butterfly|puss moth|zebra longwing|emperor moth|leopard moth|garden tiger moth",
+    "queen alexandras birdwing"],
+  ["Name an insect that lives in water (at some point)",
+    "mosquito|dragonfly",
+    "water strider|mayfly|damselfly|diving beetle",
+    "water boatman|backswimmer|caddisfly|giant water bug|toe biter|whirligig beetle",
+    "stonefly|water scorpion|dobsonfly|hellgrammite|midge|alderfly",
+    "water penny|riffle beetle|black fly|crane fly|water measurer|fishfly",
+    "creeping water bug"],
+  ["Name an insect people eat",
+    "cricket|grasshopper",
+    "mealworm|ant|locust|silkworm|silkworm pupa",
+    "chapulines|termite|witchetty grub|cicada|palm weevil|grub",
+    "waxworm|june bug|stink bug|bamboo worm|giant water bug|escamoles/ant larvae|bee larvae",
+    "mopane worm|honeypot ant|sago grub|jumiles|casu marzu/cheese fly|lerp",
+    "maguey worm"],
+  ["Name a famous fictional bug (or spider)",
+    "jiminy cricket|flik|charlotte|the very hungry caterpillar/very hungry caterpillar",
+    "heimlich|hopper|z|barry b benson/barry|mothra|ant man",
+    "gregor samsa|cri kee|ray|the caterpillar/absolem|shelob|aragog|miss spider",
+    "dot|atta|francis|slim|centipede|glowworm|miss spider|the fly",
+    "mumble|blue beetle|kafka|bumblebee|archy|the beetle",
+    "archy the cockroach"],
+  ["Name something that eats insects",
+    "frog|spider|bird",
+    "lizard|bat|anteater|venus flytrap|chameleon|gecko",
+    "toad|praying mantis/mantis|aardvark|pitcher plant|sundew|swallow|woodpecker",
+    "pangolin|shrew|dragonfly|assassin bug|armadillo|echidna|mole|numbat|skunk|hedgehog",
+    "aardwolf|bladderwort|antlion|bee eater|nightjar|robber fly|tarsier|sloth bear",
+    "aye aye"],
+  ["Name a body part of an insect",
+    "head|leg|wing|antenna/antennae",
+    "thorax|abdomen|eye|compound eye",
+    "mandible|exoskeleton|stinger|proboscis|spiracle",
+    "ocelli/ocellus|tarsus|femur|tibia|elytra/elytron|cerci/cercus",
+    "ovipositor|labium|labrum|maxilla/maxillae|haltere|coxa|trochanter|malpighian tubule",
+    "pronotum"],
+  ["Name an insect that makes noise",
+    "cricket|cicada|mosquito|bee",
+    "grasshopper|fly|housefly|bumblebee",
+    "hornet|wasp|beetle|deathwatch beetle|mole cricket",
+    "hissing cockroach/madagascar hissing cockroach|water boatman|deaths head hawkmoth|locust",
+    "lesser water boatman|treehopper|bush cricket|leafhopper|tiger moth",
+    "katydid"],
+  ["Name a word or phrase with \"bug\" in it",
+    "ladybug|bed bug|bugs bunny|stink bug",
+    "june bug|jitterbug|litterbug|debug|love bug|bug spray|firebug",
+    "water bug|pill bug|lightning bug|doodlebug|bugbear|snug as a bug in a rug|shutterbug|bug eyed",
+    "mealybug|kissing bug|assassin bug|humbug|bug out|bugle|stomach bug|bug zapper|bugaboo",
+    "bugleweed|bugloss|mudbug|bugsy|bug off|bug report",
+    "bugsy malone"],
+  ["Name a pest in your house",
+    "cockroach/roach|ant|fly|mosquito",
+    "bed bug|termite|silverfish|flea|fruit fly|spider|mouse",
+    "moth|pantry moth|carpenter ant|earwig|centipede|stink bug|house centipede|rat",
+    "carpet beetle|booklice/booklouse|drain fly|tick|weevil|cricket|lice/louse",
+    "firebrat|larder beetle|cigarette beetle|springtail|pill bug|clothes moth|psocid",
+    "drugstore beetle"],
+  ["Name an arachnid",
+    "spider|scorpion|tick",
+    "tarantula|black widow|mite|daddy long legs|brown recluse",
+    "wolf spider|jumping spider|harvestman|orb weaver|camel spider",
+    "trapdoor spider|funnel web|vinegaroon|whip scorpion|chigger|sun spider",
+    "pseudoscorpion|whip spider/amblypygid|solifuge|schizomid|peacock spider",
+    "hooded tickspider"],
+  ["Name a type of fly",
+    "housefly/house fly|fruit fly|horse fly",
+    "blowfly|deer fly|tsetse fly|crane fly|botfly|dragonfly|firefly",
+    "sand fly|black fly|hoverfly|robber fly|gnat|midge|bluebottle|greenbottle",
+    "stable fly|flesh fly|drain fly|horn fly|mayfly|stonefly|caddisfly|sawfly",
+    "bee fly|tachinid fly|stalk eyed fly|snipe fly|warble fly|louse fly|dance fly|scorpionfly",
+    "hessian fly"],
+  ["Name something that goes through metamorphosis",
+    "butterfly|caterpillar|frog|tadpole",
+    "moth|beetle|bee|ladybug|mosquito|fly",
+    "dragonfly|grasshopper|ant|wasp|salamander|cicada",
+    "mayfly|flea|toad|newt|cockroach|crab|lobster",
+    "lamprey|eel|starfish|sea urchin|barnacle|flounder",
+    "jellyfish"],
+  ["Name a bug with \"fly\" in its name that is NOT a true fly",
+    "butterfly|dragonfly|firefly",
+    "damselfly|mayfly",
+    "caddisfly|stonefly|sawfly|scorpionfly",
+    "dobsonfly|snakefly|alderfly|whitefly",
+    "fishfly|greenfly|blackfly",
+    "owlfly"],
+  ["Name a Bug-type Pokémon",
+    "caterpie|butterfree|beedrill|metapod|weedle",
+    "kakuna|scyther|pinsir|paras|parasect|venonat|venomoth|heracross",
+    "scizor|ledyba|ledian|spinarak|ariados|yanma|forretress|pineco|shuckle|wurmple|beautifly|dustox|ninjask|shedinja|volbeat|illumise",
+    "kricketot|kricketune|combee|vespiquen|burmy|wormadam|mothim|skorupi|yanmega|venipede|whirlipede|scolipede|sewaddle|swadloon|leavanny|karrablast|escavalier|shelmet|accelgor|durant|larvesta|volcarona|joltik|galvantula|dwebble|crustle|genesect|surskit|masquerain|nincada|silcoon|cascoon|armaldo",
+    "grubbin|charjabug|vikavolt|cutiefly|ribombee|dewpider|araquanid|wimpod|golisopod|pheromosa|buzzwole|blipbug|dottler|orbeetle|nymble|lokix|rellor|rabsca|tarountula|spidops|sizzlipede|centiskorch|snom|frosmoth|kleavor|slither wing|scatterbug|spewpa|vivillon",
+    "anorith"],
+  ["Name a bug you'd find in a garden",
+    "ladybug|aphid|bee|caterpillar|worm/earthworm",
+    "slug|snail|grasshopper|ant|butterfly|spider|beetle",
+    "praying mantis/mantis|lacewing|pill bug/roly poly/rolly polly|japanese beetle|cutworm|whitefly|thrips|hornworm/tomato hornworm",
+    "leafhopper|spider mite|earwig|squash bug|cabbage worm|sawfly|centipede|millipede",
+    "spittlebug|leaf miner|mealybug|scale insect|wireworm|vine weevil|assassin bug",
+    "tarnished plant bug"],
+  ["Name an insect that pollinates",
+    "bee|honeybee/honey bee|butterfly|bumblebee/bumble bee",
+    "moth|wasp|fly|hoverfly|beetle",
+    "mason bee|carpenter bee|leafcutter bee|sweat bee|fig wasp|ant|mosquito",
+    "squash bee|mining bee|bee fly|hawkmoth/hawk moth|midge",
+    "thrips|chocolate midge|blue orchard bee|alkali bee|orchid bee|soldier beetle",
+    "yucca moth"],
+  ["Name a word that rhymes with \"katydid\"",
+    "kid|did|lid|hid|bid|rid",
+    "grid|skid|slid|squid|mid|id",
+    "forbid|eyelid|amid|undid|outdid|redid|quid",
+    "overdid|pyramid|invalid|god forbid",
+    "caryatid|cuspid|bifid|trifid|hominid|nereid",
+    "arachnid"],
+  ["Name a bug movie or show",
+    "a bugs life|antz|ant man|bee movie|the fly",
+    "james and the giant peach|mothra|starship troopers|arachnophobia|eight legged freaks",
+    "them|mimic|microcosmos|the swarm|charlottes web|the ant bully|kafka",
+    "the wasp woman|empire of the ants|bug|phase iv|minuscule|maya the bee|the beekeeper",
+    "the deadly mantis|the hellstrom chronicle|beetleborgs|big bad beetleborgs|bee season|the giant spider invasion",
+    "joes apartment"],
+];
+
+// --- matching ---
+function norm(s) {
+  s = s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/['’]/g, "").replace(/[^a-z0-9]+/g, " ").trim()
+    .replace(/^(the|a|an) /, "");
+  s = s.replace(/ies$/, "y").replace(/([^s])s$/, "$1");
+  return s.replace(/ /g, "");
+}
+function lev(a, b) {
+  if (Math.abs(a.length - b.length) > 2) return 9;
+  const d = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = d[0]; d[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const t = d[j];
+      d[j] = Math.min(d[j] + 1, d[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = t;
+    }
+  }
+  return d[b.length];
+}
+function buildIndex(p) {
+  const out = [];
+  for (let t = 0; t < 6; t++) {
+    for (const entry of p[t + 1].split("|")) {
+      const names = entry.split("/");
+      for (const n of names) {
+        out.push({ key: norm(n), display: names[0], pts: PTS[t] });
+        // let "dracula" match "dracula ant", "stag" match "stag beetle", etc.
+        const short = n.match(/^(.{4,}) (ant|beetle|moth|fly|bee|wasp|spider|bug|butterfly|cricket)$/);
+        if (short) out.push({ key: norm(short[1]), display: names[0], pts: PTS[t] });
+      }
+    }
+  }
+  return out;
+}
+function score(p, raw) {
+  const k = norm(raw);
+  if (!k) return { pts: 0, display: null };
+  const idx = buildIndex(p);
+  const exact = idx.filter(e => e.key === k);
+  if (exact.length) return exact.reduce((a, b) => (b.pts > a.pts ? b : a));
+  let best = null, bestD = 99;
+  for (const e of idx) {
+    const tol = e.key.length >= 9 ? 2 : e.key.length >= 5 ? 1 : 0;
+    const d = lev(k, e.key);
+    if (d <= tol && (d < bestD || (d === bestD && e.pts > best.pts))) { best = e; bestD = d; }
+  }
+  return best || { pts: 0, display: null };
+}
+
+// --- seeded game selection ---
+function rng(seed) {
+  return () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+}
+function pick(seed) {
+  const r = rng(seed * 7919 + 17);
+  const order = PROMPTS.map((_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  return order.slice(0, 7);
+}
+
+// --- state ---
+const $ = id => document.getElementById(id);
+let seed, game, i, results, locked;
+
+function newGame(s) {
+  seed = s || Math.floor(Math.random() * 9000) + 1;
+  history.replaceState(null, "", "?g=" + seed);
+  game = pick(seed); i = 0; results = []; locked = false;
+  $("gameno").textContent = "#" + seed;
+  $("play").classList.remove("hidden");
+  $("done").classList.add("hidden");
+  renderQ();
+}
+
+function renderProgress() {
+  $("progress").innerHTML = game.map((_, k) =>
+    `<div class="slot${k === i && results.length === i ? " cur" : ""}">${results[k] ? EMO[results[k].pts] : ""}</div>`).join("");
+}
+
+function renderQ() {
+  const p = PROMPTS[game[i]];
+  $("qnum").textContent = `Prompt ${i + 1} of 7`;
+  $("prompt").textContent = p[0];
+  $("answer").value = ""; $("answer").disabled = false; $("submit").disabled = false;
+  $("result").innerHTML = "";
+  locked = false;
+  renderProgress();
+  $("answer").focus();
+}
+
+function esc(s) { return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+$("form").addEventListener("submit", e => {
+  e.preventDefault();
+  if (locked) { next(); return; }
+  const raw = $("answer").value.trim();
+  if (!raw) return;
+  locked = true;
+  const p = PROMPTS[game[i]];
+  const r = score(p, raw);
+  results.push({ q: p[0], a: raw, pts: r.pts });
+  $("answer").disabled = true;
+  const rarest = p[6];
+  const isRarest = r.pts === 100;
+  $("result").innerHTML = `
+    <div class="hit ${r.pts ? "" : "miss"}">
+      <div class="emo">${EMO[r.pts]}</div>
+      <div><div class="pts">${r.pts ? "+" + r.pts : "0"}</div><div class="lbl">${LBL[r.pts]}</div></div>
+    </div>
+    ${isRarest ? "" : `<div class="rarest">Rarest answer: <b>${esc(rarest)}</b></div>`}
+    <div class="actions"><button type="button" id="nextbtn">${i === 6 ? "See results" : "Next →"}</button></div>`;
+  $("nextbtn").onclick = next;
+  $("submit").disabled = true;
+  renderProgress();
+  $("nextbtn").focus();
+});
+
+function next() {
+  i++;
+  if (i < 7) renderQ(); else finish();
+}
+
+function rankFor(t) {
+  if (t >= 600) return "🦗 Certified Katydid";
+  if (t >= 450) return "🪲 Deep Leaf Litter";
+  if (t >= 300) return "🐝 Respectable Swarm";
+  if (t >= 150) return "🐞 Garden Variety";
+  return "🐜 Picnic Ant";
+}
+
+function shareText() {
+  const total = results.reduce((a, r) => a + r.pts, 0);
+  return `Katydidion #${seed} 🦗\n${total}\n${results.map(r => EMO[r.pts]).join("")}\n${location.origin + location.pathname}?g=${seed}`;
+}
+
+function finish() {
+  const total = results.reduce((a, r) => a + r.pts, 0);
+  $("play").classList.add("hidden");
+  $("done").classList.remove("hidden");
+  $("final").textContent = total;
+  $("row").textContent = results.map(r => EMO[r.pts]).join("");
+  $("rank").textContent = rankFor(total);
+  $("recap").innerHTML = results.map(r =>
+    `<li><span class="e">${EMO[r.pts]}</span><span><span class="q">${esc(r.q)}</span><br><span class="a">${esc(r.a)}</span></span><span class="p">${r.pts}</span></li>`).join("");
+  $("sharetext").textContent = shareText();
+  $("share").classList.toggle("hidden", !navigator.share);
+}
+
+function toast(m) { $("toast").textContent = m; setTimeout(() => $("toast").textContent = "", 2000); }
+async function copy() {
+  try { await navigator.clipboard.writeText(shareText()); toast("Copied. Go flex."); }
+  catch { toast("Couldn't copy, select the text above"); }
+}
+$("copy").onclick = copy;
+$("share").onclick = async () => { try { await navigator.share({ text: shareText() }); } catch {} };
+$("again").onclick = () => newGame();
+
+$("legend").innerHTML = [0, ...PTS].map(p => `<div><span>${EMO[p]}</span><span>${p} · ${LBL[p]}</span></div>`).join("");
+
+const g = parseInt(new URLSearchParams(location.search).get("g"), 10);
+newGame(g > 0 ? g : null);
+</script>
+</body>
+</html>
